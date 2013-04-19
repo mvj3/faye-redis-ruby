@@ -22,27 +22,23 @@ module Faye
     def init
       return if @redis
 
+      uri    = @options[:uri]       || nil
       host   = @options[:host]      || DEFAULT_HOST
       port   = @options[:port]      || DEFAULT_PORT
       db     = @options[:database]  || DEFAULT_DATABASE
-      auth   = @options[:password]
+      auth   = @options[:password]  || nil
       gc     = @options[:gc]        || DEFAULT_GC
       @ns    = @options[:namespace] || ''
-      socket = @options[:socket]
+      socket = @options[:socket]    || nil
 
-      if socket
-        @redis      = EventMachine::Hiredis::Client.connect(socket, nil)
-        @subscriber = EventMachine::Hiredis::Client.connect(socket, nil)
+      if uri
+        @redis = EventMachine::Hiredis.connect(uri)
+      elsif socket
+        @redis = EventMachine::Hiredis::Client.new(socket, nil, auth, db).connect
       else
-        @redis      = EventMachine::Hiredis::Client.connect(host, port)
-        @subscriber = EventMachine::Hiredis::Client.connect(host, port)
+        @redis = EventMachine::Hiredis::Client.new(host, port, auth, db).connect
       end
-      if auth
-        @redis.auth(auth)
-        @subscriber.auth(auth)
-      end
-      @redis.select(db)
-      @subscriber.select(db)
+      @subscriber = @redis.pubsub
 
       @subscriber.subscribe(@ns + '/notifications')
       @subscriber.on(:message) do |topic, message|
